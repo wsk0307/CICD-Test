@@ -1,0 +1,28 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main   # main 브랜치에 merge 되면 실행
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Install Salesforce CLI
+        run: npm install @salesforce/cli --location=global
+
+      - name: Authenticate Production Org
+        run: |
+          echo "${{ secrets.DEVHUB_SFDX_URL }}" > ./auth_url.txt
+          sf org login sfdx-url --sfdx-url-file ./auth_url.txt --alias ProdOrg
+
+      - name: Deploy to Production
+        run: |
+          sf project deploy start \
+            --target-org ProdOrg \
+            --test-level RunLocalTests \
+            --wait 30
