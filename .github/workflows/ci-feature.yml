@@ -1,0 +1,44 @@
+name: Validate Feature Branch
+
+on:
+  pull_request:
+    branches:
+      - build   # build 브랜치로 PR 올릴 때 실행
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Install Salesforce CLI
+        run: npm install @salesforce/cli --location=global
+
+      - name: Authenticate Dev Hub
+        run: |
+          echo "${{ secrets.DEVHUB_SFDX_URL }}" > ./auth_url.txt
+          sf org login sfdx-url --sfdx-url-file ./auth_url.txt --alias DevHub --set-default-dev-hub
+
+      - name: Create Scratch Org
+        run: |
+          sf org create scratch \
+            --definition-file config/project-scratch-def.json \
+            --alias ScratchOrg \
+            --duration-days 1 \
+            --set-default
+
+      - name: Deploy Source
+        run: sf project deploy start --target-org ScratchOrg
+
+      - name: Run Apex Tests
+        run: |
+          sf apex run test \
+            --target-org ScratchOrg \
+            --test-level RunLocalTests \
+            --wait 10 \
+            --result-format human
+
+      - name: Delete Scratch Org
+        if: always()   # 성공/실패 상관없이 항상 삭제
+        run: sf org delete scratch --target-org ScratchOrg --no-prompt
